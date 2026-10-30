@@ -23,3 +23,34 @@ for entry in meta['files']:
  assert hashlib.sha256(p.read_bytes()).hexdigest()==entry['sha256'],entry['path']
 assert (dest/'index.html').is_file()
 print('Verified',meta['site_files'],'static files;',meta['site_bytes'],'bytes')
+
+# Presentation-only update after verifying the immutable building-data snapshot.
+# Remove the About navigation, modal markup, content and event handlers.
+index=dest/'index.html'
+html=index.read_text(encoding='utf-8')
+about_link='            <a href="#" id="about-link">About</a>\n'
+assert html.count(about_link)==1, 'Expected one About navigation link'
+html=html.replace(about_link,'')
+modal_start=html.index('        <div id="overlay" class="overlay"></div>')
+modal_end=html.index('    <!-- BEGIN VIENNA STARTUP SCREEN -->',modal_start)
+assert 'id="popup"' in html[modal_start:modal_end]
+html=html[:modal_start]+html[modal_end:]
+
+bundle=dest/'file-view/main.js'
+script=bundle.read_text(encoding='utf-8')
+about_start=script.index('var ege=`')
+about_end=script.index('var tP1=[];',about_start)
+removed=script[about_start:about_end]
+assert 'About the Buildings.city Platform' in removed
+assert 'document.getElementById("about-link")' in removed
+script=script[:about_start]+script[about_end:]
+assert 'about-link' not in script and 'About the Buildings.city Platform' not in script
+bundle.write_text(script,encoding='utf-8',newline='\n')
+
+# Refresh the bundle URL so returning visitors load the revised interface.
+previous='./file-view/main.js?v=936cb37d5a4a'
+assert html.count(previous)==1
+html=html.replace(previous,'./file-view/main.js?v='+hashlib.sha256(script.encode('utf-8')).hexdigest()[:12])
+assert 'about-link' not in html and 'id="popup"' not in html
+index.write_text(html,encoding='utf-8',newline='\n')
+print('Removed Vienna About navigation and modal; building data unchanged')
